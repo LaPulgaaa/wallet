@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import {ModeToggle} from "@/components/mode"
 import { BoxModelIcon } from "@radix-ui/react-icons";
+import WalletButton from "./wallet_button";
 
 export default function Navbar(){
     return (
@@ -15,8 +16,9 @@ export default function Navbar(){
                         <span className="font-bold">Schoolbox</span>
                     </Link>
                 </div>
-                <div className="flex">
-                    <ModeToggle/>
+                <div className="flex space-x-4">
+                    <div className="mt-1"><ModeToggle/></div>
+                    <WalletButton/>
                 </div>
             </div>
         </div>
