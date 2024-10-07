@@ -45,7 +45,7 @@ export default function Airdrop(){
         }
     }
     return(
-        <Card className="w-3/5 justify-center">
+        <Card className="w-full justify-center">
             <CardHeader>
                 <CardTitle>
                 <h2 className="scroll-m-20 pb-2 text-2xl tracking-tight">
