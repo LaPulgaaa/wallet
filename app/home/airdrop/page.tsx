@@ -3,10 +3,11 @@
 import { Card ,CardContent,CardDescription,CardFooter,CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { PublicKey } from "@solana/web3.js";
 
 export default function Airdrop(){
     const { toast } = useToast();
@@ -14,7 +15,6 @@ export default function Airdrop(){
     const [amount,setAmount] = useState<string>("0.5");
     const [disabled,setDisabled] = useState<boolean>(true);
     const { connection } = useConnection();
-    const wallet = useWallet();
     const [address,setAddress] = useState<string>("");
     useEffect(()=>{
         if(address.trim() !== "" && address.length === 44){
@@ -26,9 +26,8 @@ export default function Airdrop(){
 
     async function request_airdrop(){
         try{
-            if(wallet.publicKey === null)
-                throw new Error("Wallet not connected");
-            const resp = await connection.requestAirdrop(wallet.publicKey,Number.parseInt(amount)*1000000000);
+            const public_key = new PublicKey(address);
+            const resp = await connection.requestAirdrop(public_key,Number.parseInt(amount)*1000000000);
             toast({
                 title: "Airdrop successfull",
                 description: `${resp} is the transaction hash`,
