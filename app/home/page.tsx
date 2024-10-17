@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function Home(){
     const wallet = useWallet();
     const { connection } = useConnection();
-    const [balance,setBalance] = useState<number>(0);
+    const [balance,setBalance] = useState<number | undefined>(undefined);
     const pub_key_ref = useRef<HTMLParagraphElement>(null);
     const { toast } = useToast();
 
@@ -64,7 +64,7 @@ export default function Home(){
                     <CardDescription className="flex justify-center"><Image src={sol} alt="SOL Logo"/></CardDescription>
                 </CardHeader>
                 <CardContent className="">
-                    <h2 className="text-3xl">{balance.toString()} SOL</h2>
+                    <h2 className="text-3xl">{balance?.toString() ?? "---"} SOL</h2>
                     <div
                     ref={pub_key_ref}
                     className="flex w-full bg-zinc-200 dark:bg-zinc-600 rounded-md">
@@ -79,7 +79,7 @@ export default function Home(){
                     variant={"secondary"} size={"icon"}><ClipboardCopyIcon className=""/></Button>
                     </div>
                     <div className="flex justify-between mt-4">
-                        <SendSol max_bal={balance}/>
+                        <SendSol max_bal={balance ?? 0}/>
                     </div>
                 </CardContent>
             </Card>: <div>Wallet not connected</div>}

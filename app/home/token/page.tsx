@@ -12,20 +12,24 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { MINT_SIZE, TOKEN_PROGRAM_ID, getMinimumBalanceForRentExemptMint } from "@solana/spl-token"
+import { ASSOCIATED_TOKEN_PROGRAM_ID, ExtensionType, LENGTH_SIZE, TOKEN_2022_PROGRAM_ID, TYPE_SIZE, createAssociatedTokenAccountInstruction, createInitializeMetadataPointerInstruction, createInitializeMintInstruction ,createMintToInstruction,getAssociatedTokenAddressSync,getMintLen } from "@solana/spl-token"
 import { Keypair, SystemProgram, Transaction } from "@solana/web3.js";
-import { createInitializeMintInstruction } from "@solana/spl-token";
-import { useToast } from "@/hooks/use-toast";
+import { pack, createInitializeInstruction } from "@solana/spl-token-metadata"
+import { Textarea } from "@/components/ui/textarea";
+
 
 const create_token_form = z.object({
   name: z.string().min(5),
   symbol: z.string().min(3),
   url: z.string().url(),
-  init_supply: z.string().min(1)
+  decimal: z.string().min(1),
+  supply: z.string().min(1),
+  description: z.string(),
 });
 
 type FormValue = z.output<typeof create_token_form>;
@@ -40,7 +44,9 @@ export default function Token(){
       name: "",
       symbol: "",
       url: "",
-      init_supply: "1"
+      decimal: "1",
+      supply: "1",
+      description: "",
     },
     mode: "onChange"
   });
@@ -49,54 +55,121 @@ export default function Token(){
   const { connection } = useConnection();
   const wallet  = useWallet();
 
-  async function create_mint_transaction(){
-    const min_lamports = await getMinimumBalanceForRentExemptMint(connection);
+  async function create_mint_transaction(form_details: FormValue){
     const keypair = Keypair.generate();
-    const TOKEN_ID = TOKEN_PROGRAM_ID;
-    const {blockhash} = await connection.getLatestBlockhash();
 
     if(wallet.publicKey !== null)
     {
       try{
+        const metadata = {
+          mint: keypair.publicKey,
+          name: form_details.name,
+          symbol: form_details.symbol,
+          uri: "https://cdn.100xdevs.com/metadata.json",
+          additionalMetadata: [["description",form_details.description] as const],
+        }
+
+        const minlen = getMintLen([ExtensionType.MetadataPointer]);
+        const metadata_len = TYPE_SIZE + LENGTH_SIZE + pack(metadata).length;
+        const min_lamports = await connection.getMinimumBalanceForRentExemption(minlen+metadata_len);
+
         const transaction = new Transaction().add(
           SystemProgram.createAccount({
             fromPubkey: wallet.publicKey,
             newAccountPubkey: keypair.publicKey,
-            space: MINT_SIZE,
+            space: minlen,
             lamports: min_lamports,
-            programId: TOKEN_ID,
+            programId: TOKEN_2022_PROGRAM_ID,
           }),
+          createInitializeMetadataPointerInstruction(
+            keypair.publicKey,
+            wallet.publicKey,
+            keypair.publicKey,
+            TOKEN_2022_PROGRAM_ID
+          ),
           createInitializeMintInstruction(
             keypair.publicKey,
-            2,
+            Number.parseInt(form_details.decimal),
             wallet.publicKey,
             wallet.publicKey,
-            TOKEN_ID
-          )
+            TOKEN_2022_PROGRAM_ID
+          ),
+          createInitializeInstruction({
+            programId: TOKEN_2022_PROGRAM_ID,
+            mint: keypair.publicKey,
+            metadata: keypair.publicKey,
+            name: metadata.name,
+            symbol: metadata.symbol,
+            uri: metadata.uri,
+            mintAuthority: wallet.publicKey,
+            updateAuthority: wallet.publicKey,
+          })
         );
-  
+        const { blockhash } = await connection.getLatestBlockhash();
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = wallet.publicKey;
   
         transaction.partialSign(keypair);
-        const resp = await wallet.signTransaction!(transaction);
+        const resp = await wallet.sendTransaction(transaction,connection);
         toast({
           title: "Transaction Success!",
-          description:  `By public key ${resp.signatures[0].publicKey.toString()}`
+          duration: 3000,
+          description:  `Transaction hash ${resp}`
+        });
+
+        //find/calculate associated token address from mint address, wallet address, token_id
+
+        const asso_token_addr = getAssociatedTokenAddressSync(
+          keypair.publicKey,
+          wallet.publicKey,
+          false,
+          TOKEN_2022_PROGRAM_ID
+        );
+
+        // create associated token account
+        const create_ata_tx = new Transaction().add(
+          createAssociatedTokenAccountInstruction(
+            wallet.publicKey,
+            asso_token_addr,
+            wallet.publicKey,
+            keypair.publicKey,
+            TOKEN_2022_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID
+          )
+        );
+
+        await wallet.sendTransaction(create_ata_tx,connection);
+
+        //mint token to wallet address
+        const mint_token_tx = new Transaction().add(
+          createMintToInstruction(
+            keypair.publicKey,
+            asso_token_addr,
+            wallet.publicKey,
+            Number.parseInt(form_details.supply),
+            [],
+            TOKEN_2022_PROGRAM_ID
+          )
+        );
+
+        await wallet.sendTransaction(mint_token_tx,connection);
+
+        toast({
+          title: `Minted ${form_details.supply} ${form_details.name} tokens`,
+          description: `Address: ${wallet.publicKey}`,
+          duration: 5000,
         })
+
       }catch(err){
         console.log(err);
         toast({
           variant: "destructive",
+          duration: 2000,
           title: "Transaction failed",
         })
       }
     }
     
-  }
-
-  function on_submit(){
-    create_mint_transaction();
   }
 
   return (
@@ -110,7 +183,7 @@ export default function Token(){
           <CardDescription>Easily create your solana SPL token without coding!!</CardDescription>
         </CardHeader>
           <Form {...form}>
-            <form onSubmit={handleSubmit(on_submit)}>
+            <form onSubmit={handleSubmit(create_mint_transaction)}>
               <CardContent
               className="grid lg:grid-cols-2 grid-cols-1 gap-4 space-x-2 "
               >
@@ -150,13 +223,46 @@ export default function Token(){
                 />
                 <FormField
                 control={control}
+                name="decimal"
+                render={({field})=>(
+                 <FormItem>
+                   <FormLabel>Decimals</FormLabel>
+                   <FormControl>
+                     <Input
+                     type = "text"
+                     placeholder="Enter your initial supply"
+                     {...field}
+                     />
+                   </FormControl>
+                   <FormMessage/>
+                 </FormItem>
+                )}
+                />
+                <FormField
+                control={control}
+                name="supply"
+                render={({field})=>(
+                 <FormItem>
+                   <FormLabel>Supply</FormLabel>
+                   <FormControl>
+                     <Input
+                     type = "text"
+                     placeholder="Enter your initial supply"
+                     {...field}
+                     />
+                   </FormControl>
+                   <FormMessage/>
+                 </FormItem>
+                )}
+                />
+                <FormField
+                control={control}
                 name="url"
                 render={({field})=>(
                  <FormItem>
                    <FormLabel>Image Url</FormLabel>
                    <FormControl>
-                     <Input
-                     type = "text"
+                     <Textarea
                      placeholder="Add image URL"
                      {...field}
                      />
@@ -167,14 +273,13 @@ export default function Token(){
                 />
                 <FormField
                 control={control}
-                name="init_supply"
+                name="description"
                 render={({field})=>(
                  <FormItem>
-                   <FormLabel>Initial Supply</FormLabel>
+                   <FormLabel>Description</FormLabel>
                    <FormControl>
-                     <Input
-                     type = "text"
-                     placeholder="Enter your initial supply"
+                     <Textarea
+                     placeholder="Put the description of your token"
                      {...field}
                      />
                    </FormControl>
