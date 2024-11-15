@@ -3,6 +3,7 @@ import Link from "next/link";
 import {ModeToggle} from "@/components/mode"
 import { BoxModelIcon } from "@radix-ui/react-icons";
 import WalletButton from "./wallet_button";
+import ChainDropdown from "./chain_dropdown";
 
 export default function Navbar(){
     return (
@@ -18,7 +19,8 @@ export default function Navbar(){
                 </div>
                 <div className="flex space-x-4">
                     <div className="mt-1"><ModeToggle/></div>
-                    <WalletButton/>
+                    <div className="mt-1"><ChainDropdown/></div>
+                    {/* <WalletButton/> */}
                 </div>
             </div>
         </div>
