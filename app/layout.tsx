@@ -5,6 +5,7 @@ import Navbar from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-providers";
 import { Toaster } from "@/components/ui/toaster";
 import Provider from "@/components/providers";
+import WagmiProviderContext from "@/components/wagmi-provider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -32,17 +33,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Provider>
-          <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-          >
-            <Navbar/>
-            {children}
-          </ThemeProvider>
-        </Provider>
+        <WagmiProviderContext>
+          <Provider>
+            <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+            >
+              <Navbar/>
+              {children}
+            </ThemeProvider>
+          </Provider>
+        </WagmiProviderContext>
         <Toaster/>
       </body>
     </html>
